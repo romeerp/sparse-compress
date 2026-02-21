@@ -99,6 +99,54 @@ Data structure for compressed representation.
 - `shape`: Original tensor dimensions
 - `memory_size`: Total memory usage in bytes
 
+## CUDA Acceleration
+
+For GPU-accelerated sparse operations, use the CUDA implementation:
+
+```python
+from sparse_compress_cuda import SparseCompressCUDA
+
+# Initialize CUDA compressor
+compressor = SparseCompressCUDA(sparsity_threshold=1e-6)
+
+# Compress on GPU
+weight = np.random.randn(1024, 512).astype(np.float32)
+weight[np.random.random((1024, 512)) < 0.95] = 0
+
+compressed = compressor.compress(weight)
+
+# Prepare for matrix multiplication (computes row offsets)
+compressed = compressor.prepare_for_matmul(compressed)
+
+# Fast sparse matmul on GPU
+input_batch = np.random.randn(128, 512).astype(np.float32)
+output = compressor.sparse_matmul(compressed, input_batch)
+
+# Or use sliding window for memory efficiency
+output = compressor.sliding_window_matmul(compressed, input_batch, window_size=128)
+```
+
+### CUDA Requirements
+
+- CUDA Toolkit 11.0+
+- Numba with CUDA support: `pip install numba`
+
+### CUDA Kernels
+
+The raw CUDA kernels in `cuda/sparse_kernels.cu` can be compiled for maximum performance:
+
+```bash
+cd cuda
+chmod +x build.sh
+CUDA_ARCH=sm_80 ./build.sh  # Adjust for your GPU architecture
+```
+
+Key optimizations in the CUDA implementation:
+- **Parallel prefix sums** using warp-level shuffle intrinsics
+- **Coalesced memory access** patterns
+- **Shared memory tiling** for input reuse in matmul
+- **Atomic operations** for concurrent mask bit setting
+
 ## License
 
 MIT
